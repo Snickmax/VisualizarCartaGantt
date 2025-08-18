@@ -1,0 +1,8 @@
+Flask>=3.0
+pandas>=2.0
+numpy>=1.24
+plotly>=5.22
+kaleido>=0.2.1
+openpyxl>=3.1
+XlsxWriter>=3.2
+tzdata>=2024.1

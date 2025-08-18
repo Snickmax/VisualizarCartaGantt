@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="card">
+  <h2>Archivo cargado correctamente</h2>
+  <p>Elige qué quieres hacer:</p>
+
+  <div class="menu-actions">
+    <a class="btn" href="{{ url_for('gantt_page', upload_id=upload_id) }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 3h2v18H3V3zm6 6h2v12H9V9zm6-4h2v16h-2V5z"/></svg>
+      </span>
+      <span>Ver Carta Gantt</span>
+    </a>
+
+    <a class="btn secondary" href="{{ url_for('tasks_page', upload_id=upload_id) }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      </span>
+      <span>Ver / Editar Tareas</span>
+    </a>
+
+    <a class="btn ghost" href="{{ url_for('index') }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M19 15a4 4 0 0 0-3.8-4A5.5 5.5 0 0 0 5 9.5 4.5 4.5 0 0 0 5.5 18H9v-2H5.5A2.5 2.5 0 0 1 3 13.5 3.5 3.5 0 0 1 6.5 10 3.5 3.5 0 0 1 10 6.5 4.5 4.5 0 0 1 14.5 11H15a3 3 0 0 1 0 6h-2v2h2a5 5 0 0 0 0-10z"/><path d="M11 16h2V9h2l-3-3-3 3h2z"/></svg>
+      </span>
+      <span>Cargar otro archivo</span>
+    </a>
+  </div>
+
+  <hr class="divider">
+
+  <p class="muted">
+    Sugerencia: primero revisa/ajusta las tareas y luego vuelve a la Gantt para ver los cambios reflejados.
+  </p>
+</section>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="grid">
+  <div class="card">
+    <h2>Filtros</h2>
+    <div class="filters">
+      <label>Fase:
+        <select id="faseFilter">
+          <option value="">(Todas)</option>
+        </select>
+      </label>
+      <label>Estado:
+        <select id="estadoFilter">
+          <option value="">(Todos)</option>
+        </select>
+      </label>
+      <label>Riesgo mín. (%):
+        <input type="number" id="riesgoMin" min="0" max="100" step="1" placeholder="0">
+      </label>
+      <button id="applyFilters" type="button" class="btn">Aplicar filtros</button>
+      <button id="clearFilters" type="button" class="btn secondary">Limpiar</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dashboard</h2>
+    <div id="dashboard" class="dashboard">
+      <div class="kpi">
+        <div class="kpi-number" id="kpiTareas">—</div>
+        <div class="kpi-label">Tareas</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-number" id="kpiOnTime">—%</div>
+        <div class="kpi-label">Completadas a tiempo</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-number" id="kpiDelayedDone">—%</div>
+        <div class="kpi-label">Completadas con retraso</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-number" id="kpiSobrecosto">—</div>
+        <div class="kpi-label">Sobrecosto total</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-number" id="kpiRiesgo">—%</div>
+        <div class="kpi-label">Riesgo promedio</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card full">
+    <div class="toolbar">
+      <h2>Gantt</h2>
+      <div class="spacer"></div>
+
+      <!-- Volver al menú -->
+      <a class="btn secondary" href="{{ url_for('menu', upload_id=upload_id) }}">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        </span>
+        <span>Volver al Menú</span>
+      </a>
+
+      <!-- Exportar PNG -->
+      <button id="btnExportPNG" type="button" class="btn">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-18v10.59l3.3-3.3 1.4 1.42L12 16.41l-4.7-4.7 1.4-1.42 3.3 3.3V2z"/></svg>
+        </span>
+        <span>Exportar PNG</span>
+      </button>
+
+      <!-- Exportar PDF -->
+      <button id="btnExportPDF" type="button" class="btn secondary">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16c0 1.1.9 2 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 14h2a2 2 0 1 0 0-4H8v4zm6 0h2v-4h-2v4zM8 18h8v-2H8v2zm6-11.5V8h3.5L14 6.5z"/></svg>
+        </span>
+        <span>Exportar PDF</span>
+      </button>
+
+      <!-- Exportar HTML -->
+      <button id="btnExportHTML" type="button" class="btn secondary">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M3 4h18v2H3V4zm0 14h18v2H3v-2zM3 9h18v6H3V9z"/></svg>
+        </span>
+        <span>Exportar HTML</span>
+      </button>
+
+      <!-- Exportar Excel -->
+      <button id="btnExportExcel" type="button" class="btn secondary">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M19 2H8a2 2 0 0 0-2 2v3h2V4h11v16H8v-3H6v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z"/><path d="M3.5 7H6l2.5 5L6 17H3.5l2-5-2-5zm6 0h2l1.5 3 1.5-3h2l-2.5 5L16.5 17h-2l-1.5-3-1.5 3h-2l2.5-5L9.5 7z"/></svg>
+        </span>
+        <span>Exportar Excel</span>
+      </button>
+    </div>
+
+    <div id="gantt" class="gantt"></div>
+    <p class="legend">
+      <span class="dot" style="background:#95a5a6"></span> Planificado
+      <span class="dot" style="background:#2ecc71"></span> Comp. a tiempo
+      <span class="dot" style="background:#f1c40f"></span> Comp. anticipada
+      <span class="dot" style="background:#e74c3c"></span> Comp. con retraso
+      <span class="dot" style="background:#e67e22"></span> En progreso (a tiempo)
+      <span class="dot" style="background:#c0392b"></span> En progreso (atrasada)
+      <span class="dot" style="background:#ecf0f1;border:1px solid #ccc"></span> Pendiente
+    </p>
+  </div>
+</section>
+
+<script>
+  const uploadId = "{{ upload_id }}";
+</script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,197 @@
+{% extends "layout.html" %}
+{% block content %}
+<section class="card full">
+  <div class="toolbar">
+    <h2>Ver / Editar Tareas</h2>
+    <div class="spacer"></div>
+
+    <a class="btn secondary" href="{{ url_for('menu', upload_id=upload_id) }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+      </span>
+      <span>Volver al Menú</span>
+    </a>
+
+    <a class="btn secondary" href="{{ url_for('gantt_page', upload_id=upload_id) }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 3h2v18H3V3zm6 6h2v12H9V9zm6-4h2v16h-2V5z"/></svg>
+      </span>
+      <span>Ir a la Gantt</span>
+    </a>
+
+    <a class="btn secondary" href="/api/export/excel/{{ upload_id }}">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zm7-18v10.59l3.3-3.3 1.4 1.42L12 16.41l-4.7-4.7 1.4-1.42 3.3 3.3V2z"/></svg>
+      </span>
+      <span>Exportar Excel</span>
+    </a>
+
+    <button id="saveBtn" class="btn">
+      <span class="icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v16l4-4h10a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zM12 12H6V6h6v6z"/></svg>
+      </span>
+      <span>Guardar cambios</span>
+    </button>
+  </div>
+
+  <p class="hint">
+    <strong>Campos editables:</strong> <code>Tarea</code>, <code>Predecesor</code>, <code>Inicio Real</code>, <code>Fin Real</code>, <code>% Avance Físico</code>, <code>Costo Real (USD)</code>, <code>Observaciones</code>, <code>Causa de Retraso</code>.
+  </p>
+
+  <div class="table-wrap">
+    <table id="tasksTable" class="table">
+      <thead>
+        <tr id="headerRow"></tr>
+      </thead>
+      <tbody id="bodyRows"></tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  const uploadId = "{{ upload_id }}";
+
+  const EDITABLE = {
+    "Tarea": {type:"text"},
+    "Predecesor": {type:"text"},
+    "Inicio Real": {type:"date"},
+    "Fin Real": {type:"date"},
+    "% Avance Físico": {type:"number", step:"0.01", min:"0", max:"100"},
+    "Costo Real (USD)": {type:"number", step:"0.01", min:"0"},
+    "Observaciones": {type:"textarea"},
+    "Causa de Retraso": {type:"textarea"}
+  };
+
+  const PREFERRED_ORDER = [
+    "ID","Fase","Tarea","Predecesor",
+    "Inicio Planificado","Fin Planificado",
+    "Inicio Real","Fin Real",
+    "% Avance Físico","Costo Planificado (USD)","Costo Real (USD)",
+    "Estado (auto)","Retraso (días) (auto)","Sobrecosto (USD) (auto)",
+    "Riesgo de Retraso (%)","Buffer sugerido (días)","Observaciones","Causa de Retraso"
+  ];
+
+  function isoToDateValue(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+  function dateValueToISO(val) { return val || ""; }
+
+  function buildHeader(columns) {
+    const thead = document.getElementById("headerRow");
+    thead.innerHTML = "";
+    columns.forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col;
+      thead.appendChild(th);
+    });
+  }
+
+  function stateClass(s) {
+    if (!s) return "";
+    if (s.includes("tiempo") || s.includes("anticip")) return "badge-ok";
+    if (s.includes("atrasad")) return "badge-err";
+    return "badge-warn";
+  }
+
+  function buildRow(row, columns) {
+    const tr = document.createElement("tr");
+    columns.forEach(col => {
+      const td = document.createElement("td");
+      const val = row[col] ?? "";
+
+      if (EDITABLE[col]) {
+        const cfg = EDITABLE[col];
+        let input;
+        if (cfg.type === "textarea") {
+          input = document.createElement("textarea");
+          input.value = String(val ?? "");
+        } else {
+          input = document.createElement("input");
+          input.type = cfg.type;
+          if (cfg.step) input.step = cfg.step;
+          if (cfg.min !== undefined) input.min = cfg.min;
+          if (cfg.max !== undefined) input.max = cfg.max;
+          input.value = (cfg.type === "date") ? isoToDateValue(val) : String(val ?? "");
+        }
+        input.dataset.col = col;
+        td.appendChild(input);
+      } else {
+        td.textContent = (val === null || val === undefined || val === "") ? "—" : val;
+        if (col === "Estado (auto)") {
+          td.innerHTML = `<span class="badge ${stateClass(val)}">${val}</span>`;
+        }
+      }
+      tr.appendChild(td);
+    });
+    return tr;
+  }
+
+  function orderColumns(cols) {
+    const set = new Set(cols);
+    const first = PREFERRED_ORDER.filter(c => set.has(c));
+    const rest = cols.filter(c => !first.includes(c));
+    return [...first, ...rest];
+  }
+
+  async function loadTasks() {
+    const res = await fetch(`/api/tasks/${uploadId}`);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      alert("No hay filas para mostrar.");
+      return;
+    }
+    const cols = orderColumns(Object.keys(data[0]));
+    buildHeader(cols);
+
+    const tbody = document.getElementById("bodyRows");
+    tbody.innerHTML = "";
+    data.forEach(row => tbody.appendChild(buildRow(row, cols)));
+  }
+
+  function readTableToObjects() {
+    const table = document.getElementById("tasksTable");
+    const headers = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent);
+    const out = [];
+    table.querySelectorAll("tbody tr").forEach(tr => {
+      const obj = {};
+      Array.from(tr.children).forEach((td, idx) => {
+        const col = headers[idx];
+        const input = td.querySelector("input, textarea");
+        if (input) {
+          obj[col] = (input.type === "date") ? dateValueToISO(input.value.trim()) : input.value.trim();
+        } else {
+          const text = td.textContent.trim();
+          obj[col] = (text === "—" ? "" : text);
+        }
+      });
+      out.push(obj);
+    });
+    return out;
+  }
+
+  async function saveTasks() {
+    try {
+      const rows = readTableToObjects();
+      const res = await fetch(`/api/tasks/${uploadId}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(rows)
+      });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || "Error desconocido");
+      alert("✅ Cambios guardados y recálculo aplicado.");
+      await loadTasks();
+    } catch (e) {
+      alert("❌ " + e.message);
+    }
+  }
+
+  document.getElementById("saveBtn").addEventListener("click", saveTasks);
+  loadTasks();
+</script>
+{% endblock %}
