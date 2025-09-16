@@ -76,25 +76,47 @@ function themeColors() {
 }
 
 function buildTraces(rows) {
-  // Sort rows by planned start
-  const sorted = [...rows].sort((a, b) => {
-    const ad = parseDate(a.InicioPlan) || new Date(0);
-    const bd = parseDate(b.InicioPlan) || new Date(0);
-    return ad - bd || String(a.ID).localeCompare(String(b.ID));
+  const enriched = rows.map(row => ({
+    row,
+    planStart: parseDate(row.InicioPlan),
+    planEnd: parseDate(row.FinPlan),
+    realStart: parseDate(row.InicioReal),
+    realEnd: parseDate(row.FinReal)
+  }));
+
+  // Drop tasks that don't have enough information to render
+  const candidates = enriched.filter(item => (
+    (item.planStart && item.planEnd) || item.realStart
+  ));
+
+  // Keep order consistent and stable
+  const sorted = [...candidates].sort((a, b) => {
+    const ad = a.planStart || a.realStart || a.planEnd || a.realEnd;
+    const bd = b.planStart || b.realStart || b.planEnd || b.realEnd;
+    if (!ad && !bd) {
+      return String(a.row.ID).localeCompare(String(b.row.ID));
+    }
+    if (!ad) return 1;
+    if (!bd) return -1;
+    const diff = ad - bd;
+    if (diff !== 0) return diff;
+    return String(a.row.ID).localeCompare(String(b.row.ID));
   });
 
-  const y = sorted.map(r => `${r.ID} — ${r.Tarea}`);
+  const y = sorted.map(item => `${item.row.ID} — ${item.row.Tarea}`);
 
   // Planned bars
   const x_plan = [];
   const base_plan = [];
   const hover_plan = [];
-  for (const r of sorted) {
-    const sp = parseDate(r.InicioPlan);
-    const ep = parseDate(r.FinPlan);
-    const dur = (sp && ep) ? (ep - sp) : 0;
+  for (const item of sorted) {
+    const { row: r, planStart: sp, planEnd: ep } = item;
+    let dur = null;
+    if (sp && ep) {
+      dur = Math.max(ep - sp, 0);
+    }
     x_plan.push(dur);
-    base_plan.push(sp || null);
+    base_plan.push(dur !== null ? sp : null);
     hover_plan.push(
       `<b>${r.Tarea}</b><br>` +
       `Plan: ${r.InicioPlan || '—'} → ${r.FinPlan || '—'}`
@@ -118,21 +140,25 @@ function buildTraces(rows) {
   const text_real = [];
   const marker_color = [];
   const hover_real = [];
-  const todayISO = (new Date()).toISOString().slice(0,10);
-  for (const r of sorted) {
-    const sr = parseDate(r.InicioReal);
-    let er = parseDate(r.FinReal);
-    if (!er && r.InicioReal) er = new Date(); // "today"
-    const dur = (sr && er) ? (er - sr) : 0;
+  const today = new Date();
+  const todayISO = today.toISOString().slice(0,10);
+  for (const item of sorted) {
+    const { row: r, realStart: sr } = item;
+    let er = item.realEnd;
+    if (sr && !er) er = today; // "today" for ongoing tasks
+    let dur = null;
+    if (sr && er) {
+      dur = Math.max(er - sr, 0);
+    }
     x_real.push(dur);
-    base_real.push(sr || null);  // eje fecha -> null si no hay inicio real
+    base_real.push(dur !== null ? sr : null);  // eje fecha -> null si no hay inicio real
     text_real.push(r.EstadoAuto);
     marker_color.push(FILTERS.palette[r.EstadoAuto] || '#ffffff');
     const retraso = (r.RetrasoDias != null) ? r.RetrasoDias : '—';
     const sob = (r.SobrecostoAuto != null) ? currencyFmt(r.SobrecostoAuto) : '—';
     hover_real.push(
       `<b>${r.Tarea}</b><br>` +
-      `Real: ${r.InicioReal || '—'} → ${r.FinReal || todayISO}<br>` +
+      `Real: ${r.InicioReal || '—'} → ${r.FinReal || (sr ? todayISO : '—')}<br>` +
       `Estado: ${r.EstadoAuto}<br>` +
       `Avance: ${percentFmt(r.AvanceFisico)}<br>` +
       `Retraso: ${retraso} días<br>` +
@@ -154,14 +180,14 @@ function buildTraces(rows) {
   // Dependency arrows (shapes + annotations)
   const shapes = [];
   const annotations = [];
-  for (const r of sorted) {
+  for (const item of sorted) {
+    const { row: r, planStart: sp } = item;
     const taskName = `${r.ID} — ${r.Tarea}`;
-    const sp = parseDate(r.InicioPlan);
     for (const pred of (r.Predecesores || [])) {
-      const predRow = sorted.find(x => String(x.ID) === String(pred));
-      if (!predRow) continue;
-      const predName = `${predRow.ID} — ${predRow.Tarea}`;
-      const predEnd = parseDate(predRow.FinPlan);
+      const predItem = sorted.find(x => String(x.row.ID) === String(pred));
+      if (!predItem) continue;
+      const predName = `${predItem.row.ID} — ${predItem.row.Tarea}`;
+      const predEnd = predItem.planEnd;
       if (!sp || !predEnd) continue;
       shapes.push({
         type: 'line',
@@ -194,7 +220,7 @@ function buildTraces(rows) {
       title: 'Fecha',
       tickformat: '%d-%m-%Y'
     },
-    yaxis: { automargin: true },
+    yaxis: { automargin: true, autorange: 'reversed' },
     shapes, annotations,
     legend: { orientation: 'h', y: -0.15 },
     paper_bgcolor: colors.bg,
