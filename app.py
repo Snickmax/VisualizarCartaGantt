@@ -186,6 +186,8 @@ def _coerce_types(df: pd.DataFrame) -> pd.DataFrame:
         df["% Avance Físico"] = df["% Avance Físico"].apply(_to_percent_0_100)
     if "Riesgo de Retraso (%)" in df.columns:
         df["Riesgo de Retraso (%)"] = df["Riesgo de Retraso (%)"].apply(_to_percent_0_100)
+    if "Días de Retraso" in df.columns:
+        df["Días de Retraso"] = df["Días de Retraso"].apply(_to_float)
 
     # Ensure optional columns exist
     for col, default in OPTIONAL_DEFAULTS.items():
@@ -390,6 +392,7 @@ def api_data(upload_id):
             "SobrecostoAuto": None if pd.isna(r.get("Sobrecosto (USD) (auto)", np.nan)) else float(r["Sobrecosto (USD) (auto)"]),
             "BufferSugerido": None if pd.isna(r.get("Buffer sugerido (días)", np.nan)) else float(r["Buffer sugerido (días)"]),
             "RetrasoDias": None if pd.isna(r.get("Retraso (días) (auto)", np.nan)) else float(r["Retraso (días) (auto)"]),
+            "DiasRetrasoExcel": None if pd.isna(r.get("Días de Retraso", np.nan)) else float(r["Días de Retraso"]),
             "Predecesores": r.get("Predecesores (lista)", []),
         })
 

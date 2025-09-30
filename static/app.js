@@ -3,6 +3,12 @@ function parseDate(d) {
   return d ? new Date(d) : null;
 }
 
+function formatDateISO(date) {
+  if (!date) return null;
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function daysBetween(a, b) {
   if (!a || !b) return 0;
   const ms = (b - a);
@@ -76,17 +82,25 @@ function themeColors() {
 }
 
 function buildTraces(rows) {
+  const today = new Date();
+  const todayISO = today.toISOString().slice(0, 10);
+
   const enriched = rows.map(row => ({
     row,
     planStart: parseDate(row.InicioPlan),
     planEnd: parseDate(row.FinPlan),
     realStart: parseDate(row.InicioReal),
-    realEnd: parseDate(row.FinReal)
+    realEnd: parseDate(row.FinReal),
+    delayExcel: (row.DiasRetrasoExcel === null || row.DiasRetrasoExcel === undefined || isNaN(row.DiasRetrasoExcel))
+      ? null
+      : Number(row.DiasRetrasoExcel)
   }));
 
   // Drop tasks that don't have enough information to render
   const candidates = enriched.filter(item => (
-    (item.planStart && item.planEnd) || item.realStart
+    (item.planStart && item.planEnd) ||
+    item.realStart ||
+    (item.planStart && item.delayExcel !== null)
   ));
 
   // Keep order consistent and stable
@@ -140,28 +154,68 @@ function buildTraces(rows) {
   const text_real = [];
   const marker_color = [];
   const hover_real = [];
-  const today = new Date();
-  const todayISO = today.toISOString().slice(0,10);
   for (const item of sorted) {
-    const { row: r, realStart: sr } = item;
-    let er = item.realEnd;
-    if (sr && !er) er = today; // "today" for ongoing tasks
+    const { row: r } = item;
+    const delayDays = Number.isFinite(item.delayExcel) ? Math.max(0, Math.round(item.delayExcel)) : null;
+    const isPending = r.EstadoAuto === 'Pendiente' && !item.realStart && !item.realEnd;
+    let sr = item.realStart || item.planStart || null;
+    let er = item.realEnd ? new Date(item.realEnd.getTime()) : null;
+
+    if (!er) {
+      if (delayDays !== null) {
+        if (isPending && sr) {
+          // Pending tasks should only display the recorded delay span.
+          er = new Date(sr.getTime());
+          er.setDate(er.getDate() + delayDays);
+        } else if (item.planEnd) {
+          er = new Date(item.planEnd.getTime());
+          er.setDate(er.getDate() + delayDays);
+        } else if (sr) {
+          er = new Date(sr.getTime());
+          er.setDate(er.getDate() + delayDays);
+        }
+      } else if (sr) {
+        // Without recorded delay use today to show current progress window
+        const todayOrStart = Math.max(today.getTime(), sr.getTime());
+        er = new Date(todayOrStart);
+      }
+    }
+
+    // If there is still no sensible start but we do have a planned start, reuse it
+    if (!sr && item.planStart) {
+      sr = item.planStart;
+    }
+
+    // For pending tasks with zero recorded delay, make the bar visible for today.
+    if (!er && isPending && sr) {
+      const todayOrStart = Math.max(today.getTime(), sr.getTime());
+      er = new Date(todayOrStart);
+    }
+
     let dur = null;
     if (sr && er) {
-      dur = Math.max(er - sr, 0);
+      dur = Math.max(er.getTime() - sr.getTime(), 0);
+      if (dur === 0) {
+        // ensure bars for same-day tasks still render with width
+        dur = 24 * 60 * 60 * 1000;
+      }
     }
     x_real.push(dur);
     base_real.push(dur !== null ? sr : null);  // eje fecha -> null si no hay inicio real
     text_real.push(r.EstadoAuto);
     marker_color.push(FILTERS.palette[r.EstadoAuto] || '#ffffff');
     const retraso = (r.RetrasoDias != null) ? r.RetrasoDias : '—';
+    const retrasoExcel = (r.DiasRetrasoExcel != null) ? r.DiasRetrasoExcel : '—';
     const sob = (r.SobrecostoAuto != null) ? currencyFmt(r.SobrecostoAuto) : '—';
+    const startDisplay = r.InicioReal || (sr ? formatDateISO(sr) : '—');
+    const endDisplay = r.FinReal || (er ? formatDateISO(er) : (sr ? todayISO : '—'));
     hover_real.push(
       `<b>${r.Tarea}</b><br>` +
-      `Real: ${r.InicioReal || '—'} → ${r.FinReal || (sr ? todayISO : '—')}<br>` +
+      `Real: ${startDisplay} → ${endDisplay}<br>` +
       `Estado: ${r.EstadoAuto}<br>` +
       `Avance: ${percentFmt(r.AvanceFisico)}<br>` +
-      `Retraso: ${retraso} días<br>` +
+      `Retraso (auto): ${retraso} días<br>` +
+      `Retraso registrado: ${retrasoExcel} días<br>` +
       `Costo: ${currencyFmt(r.CostoPlan)} vs ${currencyFmt(r.CostoReal)}<br>` +
       `Sobrecosto: ${sob}`
     );
@@ -208,6 +262,26 @@ function buildTraces(rows) {
       });
     }
   }
+
+  shapes.push({
+    type: 'line',
+    xref: 'x',
+    yref: 'paper',
+    x0: todayISO,
+    y0: 0,
+    x1: todayISO,
+    y1: 1,
+    line: { color: '#34495e', width: 2, dash: 'dash' }
+  });
+  annotations.push({
+    xref: 'x',
+    yref: 'paper',
+    x: todayISO,
+    y: 1.02,
+    text: 'Hoy',
+    showarrow: false,
+    font: { color: '#34495e', size: 12 }
+  });
 
   const colors = themeColors();
   const layout = {
