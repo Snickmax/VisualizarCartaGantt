@@ -157,12 +157,17 @@ function buildTraces(rows) {
   for (const item of sorted) {
     const { row: r } = item;
     const delayDays = Number.isFinite(item.delayExcel) ? Math.max(0, Math.round(item.delayExcel)) : null;
+    const isPending = r.EstadoAuto === 'Pendiente' && !item.realStart && !item.realEnd;
     let sr = item.realStart || item.planStart || null;
     let er = item.realEnd ? new Date(item.realEnd.getTime()) : null;
 
     if (!er) {
       if (delayDays !== null) {
-        if (item.planEnd) {
+        if (isPending && sr) {
+          // Pending tasks should only display the recorded delay span.
+          er = new Date(sr.getTime());
+          er.setDate(er.getDate() + delayDays);
+        } else if (item.planEnd) {
           er = new Date(item.planEnd.getTime());
           er.setDate(er.getDate() + delayDays);
         } else if (sr) {
@@ -179,6 +184,12 @@ function buildTraces(rows) {
     // If there is still no sensible start but we do have a planned start, reuse it
     if (!sr && item.planStart) {
       sr = item.planStart;
+    }
+
+    // For pending tasks with zero recorded delay, make the bar visible for today.
+    if (!er && isPending && sr) {
+      const todayOrStart = Math.max(today.getTime(), sr.getTime());
+      er = new Date(todayOrStart);
     }
 
     let dur = null;
