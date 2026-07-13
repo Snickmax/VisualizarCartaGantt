@@ -2,6 +2,15 @@
 
 Aplicación web para cargar un **Excel de tareas**, procesarlo y visualizar una **Carta Gantt interactiva** con filtros, dependencias, dashboard de KPIs, editor de tareas y exportaciones (PNG/PDF/HTML/Excel). Incluye **modo claro/oscuro** y un **Excel de ejemplo**.
 
+![Carta Gantt interactiva renderizada con el Excel de ejemplo](docs/screenshot-gantt.png)
+
+<details>
+<summary>Ver filtros y dashboard de KPIs</summary>
+
+![Filtros por fase/estado/riesgo y dashboard de KPIs](docs/screenshot-filtros-kpis.png)
+
+</details>
+
 ---
 
 ## 1) Requisitos
